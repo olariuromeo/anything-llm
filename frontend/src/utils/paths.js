@@ -23,9 +23,6 @@ export default {
     vectorDatabase: () => {
       return "/onboarding/vector-database";
     },
-    customLogo: () => {
-      return "/onboarding/custom-logo";
-    },
     userSetup: () => {
       return "/onboarding/user-setup";
     },
@@ -68,6 +65,9 @@ export default {
       members: (slug) => {
         return `/workspace/${slug}/settings/members`;
       },
+      agentConfig: (slug) => {
+        return `/workspace/${slug}/settings/agent-config`;
+      },
     },
     thread: (wsSlug, threadSlug) => {
       return `/workspace/${wsSlug}/t/${threadSlug}`;
@@ -98,6 +98,9 @@ export default {
     transcriptionPreference: () => {
       return "/settings/transcription-preference";
     },
+    audioPreference: () => {
+      return "/settings/audio-preference";
+    },
     embedder: {
       modelPreference: () => "/settings/embedding-preference",
       chunkingPreference: () => "/settings/text-splitter-preference",
@@ -113,6 +116,9 @@ export default {
     },
     appearance: () => {
       return "/settings/appearance";
+    },
+    agentSkills: () => {
+      return "/settings/agents";
     },
     apiKeys: () => {
       return "/settings/api-keys";

@@ -21,6 +21,7 @@ const { extensionEndpoints } = require("./endpoints/extensions");
 const { bootHTTP, bootSSL } = require("./utils/boot");
 const { workspaceThreadEndpoints } = require("./endpoints/workspaceThreads");
 const { documentEndpoints } = require("./endpoints/document");
+const { agentWebsocket } = require("./endpoints/agentWebsocket");
 const app = express();
 const apiRouter = express.Router();
 const FILE_LIMIT = "3GB";
@@ -35,6 +36,12 @@ app.use(
   })
 );
 
+if (!!process.env.ENABLE_HTTPS) {
+  bootSSL(app, process.env.SERVER_PORT || 3001);
+} else {
+  require("express-ws")(app); // load WebSockets in non-SSL mode.
+}
+
 app.use("/api", apiRouter);
 systemEndpoints(apiRouter);
 extensionEndpoints(apiRouter);
@@ -46,6 +53,7 @@ inviteEndpoints(apiRouter);
 embedManagementEndpoints(apiRouter);
 utilEndpoints(apiRouter);
 documentEndpoints(apiRouter);
+agentWebsocket(apiRouter);
 developerEndpoints(app, apiRouter);
 
 // Externally facing embedder endpoints
@@ -53,7 +61,14 @@ embeddedEndpoints(apiRouter);
 
 if (process.env.NODE_ENV !== "development") {
   app.use(
-    express.static(path.resolve(__dirname, "public"), { extensions: ["js"] })
+    express.static(path.resolve(__dirname, "public"), {
+      extensions: ["js"],
+      setHeaders: (res) => {
+        // Disable I-framing of entire site UI
+        res.removeHeader("X-Powered-By");
+        res.setHeader("X-Frame-Options", "DENY");
+      },
+    })
   );
 
   app.use("/", function (_, response) {
@@ -99,8 +114,6 @@ app.all("*", function (_, response) {
   response.sendStatus(404);
 });
 
-if (!!process.env.ENABLE_HTTPS) {
-  bootSSL(app, process.env.SERVER_PORT || 3001);
-} else {
-  bootHTTP(app, process.env.SERVER_PORT || 3001);
-}
+// In non-https mode we need to boot at the end since the server has not yet
+// started and is `.listen`ing.
+if (!process.env.ENABLE_HTTPS) bootHTTP(app, process.env.SERVER_PORT || 3001);

@@ -21,6 +21,7 @@ const AdminInvites = lazy(() => import("@/pages/Admin/Invitations"));
 const AdminWorkspaces = lazy(() => import("@/pages/Admin/Workspaces"));
 const AdminSystem = lazy(() => import("@/pages/Admin/System"));
 const AdminLogs = lazy(() => import("@/pages/Admin/Logging"));
+const AdminAgents = lazy(() => import("@/pages/Admin/Agents"));
 const GeneralChats = lazy(() => import("@/pages/GeneralSettings/Chats"));
 const GeneralAppearance = lazy(
   () => import("@/pages/GeneralSettings/Appearance")
@@ -31,6 +32,9 @@ const GeneralLLMPreference = lazy(
 );
 const GeneralTranscriptionPreference = lazy(
   () => import("@/pages/GeneralSettings/TranscriptionPreference")
+);
+const GeneralAudioPreference = lazy(
+  () => import("@/pages/GeneralSettings/AudioPreference")
 );
 const GeneralEmbeddingPreference = lazy(
   () => import("@/pages/GeneralSettings/EmbeddingPreference")
@@ -86,6 +90,10 @@ export default function App() {
                 }
               />
               <Route
+                path="/settings/audio-preference"
+                element={<AdminRoute Component={GeneralAudioPreference} />}
+              />
+              <Route
                 path="/settings/embedding-preference"
                 element={<AdminRoute Component={GeneralEmbeddingPreference} />}
               />
@@ -98,6 +106,10 @@ export default function App() {
               <Route
                 path="/settings/vector-database"
                 element={<AdminRoute Component={GeneralVectorDatabase} />}
+              />
+              <Route
+                path="/settings/agents"
+                element={<AdminRoute Component={AdminAgents} />}
               />
               <Route
                 path="/settings/event-logs"

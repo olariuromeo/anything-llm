@@ -3,11 +3,8 @@ const { TextSplitter } = require("../../TextSplitter");
 const { SystemSettings } = require("../../../models/systemSettings");
 const { storeVectorResult, cachedVectorInformation } = require("../../files");
 const { v4: uuidv4 } = require("uuid");
-const {
-  toChunks,
-  getLLMProvider,
-  getEmbeddingEngineSelection,
-} = require("../../helpers");
+const { toChunks, getEmbeddingEngineSelection } = require("../../helpers");
+const { sourceIdentifier } = require("../../chats");
 
 const QDrant = {
   name: "QDrant",
@@ -55,7 +52,8 @@ const QDrant = {
     namespace,
     queryVector,
     similarityThreshold = 0.25,
-    topN = 4
+    topN = 4,
+    filterIdentifiers = []
   ) {
     const { client } = await this.connect();
     const result = {
@@ -72,6 +70,13 @@ const QDrant = {
 
     responses.forEach((response) => {
       if (response.score < similarityThreshold) return;
+      if (filterIdentifiers.includes(sourceIdentifier(response?.payload))) {
+        console.log(
+          "QDrant: A source was filtered from context as it's parent document is pinned."
+        );
+        return;
+      }
+
       result.contextTexts.push(response?.payload?.text || "");
       result.sourceDocuments.push({
         ...(response?.payload || {}),
@@ -90,7 +95,7 @@ const QDrant = {
     return {
       name: namespace,
       ...collection,
-      vectorCount: collection.vectors_count,
+      vectorCount: (await client.count(namespace, { exact: true })).count,
     };
   },
   hasNamespace: async function (namespace = null) {
@@ -146,7 +151,8 @@ const QDrant = {
         const { client } = await this.connect();
         const { chunks } = cacheResult;
         const documentVectors = [];
-        vectorDimension = chunks[0][0].vector.length || null;
+        vectorDimension =
+          chunks[0][0]?.vector?.length ?? chunks[0][0]?.values?.length ?? null;
 
         const collection = await this.getOrCreateCollection(
           client,
@@ -199,25 +205,29 @@ const QDrant = {
       // We have to do this manually as opposed to using LangChains `Qdrant.fromDocuments`
       // because we then cannot atomically control our namespace to granularly find/remove documents
       // from vectordb.
+      const EmbedderEngine = getEmbeddingEngineSelection();
       const textSplitter = new TextSplitter({
         chunkSize: TextSplitter.determineMaxChunkSize(
           await SystemSettings.getValueOrFallback({
             label: "text_splitter_chunk_size",
           }),
-          getEmbeddingEngineSelection()?.embeddingMaxChunkLength
+          EmbedderEngine?.embeddingMaxChunkLength
         ),
         chunkOverlap: await SystemSettings.getValueOrFallback(
           { label: "text_splitter_chunk_overlap" },
           20
         ),
+        chunkHeaderMeta: {
+          sourceDocument: metadata?.title,
+          published: metadata?.published || "unknown",
+        },
       });
       const textChunks = await textSplitter.splitText(pageContent);
 
       console.log("Chunks created from document:", textChunks.length);
-      const LLMConnector = getLLMProvider();
       const documentVectors = [];
       const vectors = [];
-      const vectorValues = await LLMConnector.embedChunks(textChunks);
+      const vectorValues = await EmbedderEngine.embedChunks(textChunks);
       const submission = {
         ids: [],
         vectors: [],
@@ -311,6 +321,7 @@ const QDrant = {
     LLMConnector = null,
     similarityThreshold = 0.25,
     topN = 4,
+    filterIdentifiers = [],
   }) {
     if (!namespace || !input || !LLMConnector)
       throw new Error("Invalid request to performSimilaritySearch.");
@@ -330,7 +341,8 @@ const QDrant = {
       namespace,
       queryVector,
       similarityThreshold,
-      topN
+      topN,
+      filterIdentifiers
     );
 
     const sources = sourceDocuments.map((metadata, i) => {

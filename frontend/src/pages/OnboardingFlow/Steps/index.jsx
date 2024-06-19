@@ -3,9 +3,6 @@ import { useState } from "react";
 import { isMobile } from "react-device-detect";
 import Home from "./Home";
 import LLMPreference from "./LLMPreference";
-import EmbeddingPreference from "./EmbeddingPreference";
-import VectorDatabaseConnection from "./VectorDatabaseConnection";
-import CustomLogo from "./CustomLogo";
 import UserSetup from "./UserSetup";
 import DataHandling from "./DataHandling";
 import Survey from "./Survey";
@@ -14,9 +11,6 @@ import CreateWorkspace from "./CreateWorkspace";
 const OnboardingSteps = {
   home: Home,
   "llm-preference": LLMPreference,
-  "embedding-preference": EmbeddingPreference,
-  "vector-database": VectorDatabaseConnection,
-  "custom-logo": CustomLogo,
   "user-setup": UserSetup,
   "data-handling": DataHandling,
   survey: Survey,
@@ -43,7 +37,7 @@ export function OnboardingLayout({ children }) {
 
   if (isMobile) {
     return (
-      <div className="w-screen h-screen overflow-y-auto bg-[#2C2F35] overflow-hidden">
+      <div className="w-screen h-screen overflow-y-auto bg-mobile-onboarding overflow-hidden">
         <div className="flex flex-col">
           <div className="w-full relative py-10 px-2">
             <div className="flex flex-col w-fit mx-auto gap-y-1 mb-[55px]">
@@ -93,7 +87,7 @@ export function OnboardingLayout({ children }) {
   }
 
   return (
-    <div className="w-screen overflow-y-auto bg-[#2C2F35] md:bg-main-gradient flex justify-center overflow-hidden">
+    <div className="w-screen overflow-y-auto bg-mobile-onboarding md:bg-main-gradient flex justify-center overflow-hidden">
       <div className="flex w-1/5 h-screen justify-center items-center">
         {backBtn.showing && (
           <button

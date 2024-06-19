@@ -64,7 +64,7 @@ export default function PrivacyAndDataHandling() {
 function ThirdParty({ settings }) {
   const llmChoice = settings?.LLMProvider || "openai";
   const embeddingEngine = settings?.EmbeddingEngine || "openai";
-  const vectorDb = settings?.VectorDB || "pinecone";
+  const vectorDb = settings?.VectorDB || "lancedb";
 
   return (
     <div className="py-8 w-full flex items-start justify-center flex-col gap-y-6 border-b-2 border-white/10">
@@ -88,7 +88,9 @@ function ThirdParty({ settings }) {
           </ul>
         </div>
         <div className="flex flex-col gap-y-2 border-b border-zinc-500/50 pb-4">
-          <div className="text-white text-base font-bold">Embedding Engine</div>
+          <div className="text-white text-base font-bold">
+            Embedding Preference
+          </div>
           <div className="flex items-center gap-2.5">
             <img
               src={EMBEDDING_ENGINE_PRIVACY[embeddingEngine].logo}

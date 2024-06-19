@@ -17,6 +17,7 @@ class CollectorApi {
   #attachOptions() {
     return {
       whisperProvider: process.env.WHISPER_PROVIDER || "local",
+      WhisperModelPref: process.env.WHISPER_MODEL_PREF,
       openAiKey: process.env.OPEN_AI_KEY || null,
     };
   }
@@ -131,6 +132,29 @@ class CollectorApi {
       .catch((e) => {
         this.log(e.message);
         return { success: false, data: {}, reason: e.message };
+      });
+  }
+
+  async getLinkContent(link = "") {
+    if (!link) return false;
+
+    const data = JSON.stringify({ link });
+    return await fetch(`${this.endpoint}/util/get-link`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Integrity": this.comkey.sign(data),
+      },
+      body: data,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Response could not be completed");
+        return res.json();
+      })
+      .then((res) => res)
+      .catch((e) => {
+        this.log(e.message);
+        return { success: false, content: null };
       });
   }
 }

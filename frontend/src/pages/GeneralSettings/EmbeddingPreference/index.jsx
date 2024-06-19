@@ -8,6 +8,11 @@ import OpenAiLogo from "@/media/llmprovider/openai.png";
 import AzureOpenAiLogo from "@/media/llmprovider/azure.png";
 import LocalAiLogo from "@/media/llmprovider/localai.png";
 import OllamaLogo from "@/media/llmprovider/ollama.png";
+import LMStudioLogo from "@/media/llmprovider/lmstudio.png";
+import CohereLogo from "@/media/llmprovider/cohere.png";
+import VoyageAiLogo from "@/media/embeddingprovider/voyageai.png";
+import LiteLLMLogo from "@/media/llmprovider/litellm.png";
+
 import PreLoader from "@/components/Preloader";
 import ChangeWarningModal from "@/components/ChangeWarning";
 import OpenAiOptions from "@/components/EmbeddingSelection/OpenAiOptions";
@@ -15,16 +20,90 @@ import AzureAiOptions from "@/components/EmbeddingSelection/AzureAiOptions";
 import LocalAiOptions from "@/components/EmbeddingSelection/LocalAiOptions";
 import NativeEmbeddingOptions from "@/components/EmbeddingSelection/NativeEmbeddingOptions";
 import OllamaEmbeddingOptions from "@/components/EmbeddingSelection/OllamaOptions";
+import LMStudioEmbeddingOptions from "@/components/EmbeddingSelection/LMStudioOptions";
+import CohereEmbeddingOptions from "@/components/EmbeddingSelection/CohereOptions";
+import VoyageAiOptions from "@/components/EmbeddingSelection/VoyageAiOptions";
+import LiteLLMOptions from "@/components/EmbeddingSelection/LiteLLMOptions";
+
 import EmbedderItem from "@/components/EmbeddingSelection/EmbedderItem";
 import { CaretUpDown, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useModal } from "@/hooks/useModal";
 import ModalWrapper from "@/components/ModalWrapper";
 import CTAButton from "@/components/lib/CTAButton";
 
+const EMBEDDERS = [
+  {
+    name: "AnythingLLM Embedder",
+    value: "native",
+    logo: AnythingLLMIcon,
+    options: (settings) => <NativeEmbeddingOptions settings={settings} />,
+    description:
+      "Use the built-in embedding provider for AnythingLLM. Zero setup!",
+  },
+  {
+    name: "OpenAI",
+    value: "openai",
+    logo: OpenAiLogo,
+    options: (settings) => <OpenAiOptions settings={settings} />,
+    description: "The standard option for most non-commercial use.",
+  },
+  {
+    name: "Azure OpenAI",
+    value: "azure",
+    logo: AzureOpenAiLogo,
+    options: (settings) => <AzureAiOptions settings={settings} />,
+    description: "The enterprise option of OpenAI hosted on Azure services.",
+  },
+  {
+    name: "Local AI",
+    value: "localai",
+    logo: LocalAiLogo,
+    options: (settings) => <LocalAiOptions settings={settings} />,
+    description: "Run embedding models locally on your own machine.",
+  },
+  {
+    name: "Ollama",
+    value: "ollama",
+    logo: OllamaLogo,
+    options: (settings) => <OllamaEmbeddingOptions settings={settings} />,
+    description: "Run embedding models locally on your own machine.",
+  },
+  {
+    name: "LM Studio",
+    value: "lmstudio",
+    logo: LMStudioLogo,
+    options: (settings) => <LMStudioEmbeddingOptions settings={settings} />,
+    description:
+      "Discover, download, and run thousands of cutting edge LLMs in a few clicks.",
+  },
+  {
+    name: "Cohere",
+    value: "cohere",
+    logo: CohereLogo,
+    options: (settings) => <CohereEmbeddingOptions settings={settings} />,
+    description: "Run powerful embedding models from Cohere.",
+  },
+  {
+    name: "Voyage AI",
+    value: "voyageai",
+    logo: VoyageAiLogo,
+    options: (settings) => <VoyageAiOptions settings={settings} />,
+    description: "Run powerful embedding models from Voyage AI.",
+  },
+  {
+    name: "LiteLLM",
+    value: "litellm",
+    logo: LiteLLMLogo,
+    options: (settings) => <LiteLLMOptions settings={settings} />,
+    description: "Run powerful embedding models from LiteLLM.",
+  },
+];
+
 export default function GeneralEmbeddingPreference() {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [hasEmbeddings, setHasEmbeddings] = useState(false);
+  const [hasCachedEmbeddings, setHasCachedEmbeddings] = useState(false);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,12 +113,24 @@ export default function GeneralEmbeddingPreference() {
   const searchInputRef = useRef(null);
   const { isOpen, openModal, closeModal } = useModal();
 
+  function embedderModelChanged(formEl) {
+    try {
+      const newModel = new FormData(formEl).get("EmbeddingModelPref") ?? null;
+      if (newModel === null) return false;
+      return settings?.EmbeddingModelPref !== newModel;
+    } catch (error) {
+      console.error(error);
+    }
+    return false;
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (
-      selectedEmbedder !== settings?.EmbeddingEngine &&
+      (selectedEmbedder !== settings?.EmbeddingEngine ||
+        embedderModelChanged(e.target)) &&
       hasChanges &&
-      hasEmbeddings
+      (hasEmbeddings || hasCachedEmbeddings)
     ) {
       openModal();
     } else {
@@ -89,49 +180,11 @@ export default function GeneralEmbeddingPreference() {
       setSettings(_settings);
       setSelectedEmbedder(_settings?.EmbeddingEngine || "native");
       setHasEmbeddings(_settings?.HasExistingEmbeddings || false);
+      setHasCachedEmbeddings(_settings?.HasCachedEmbeddings || false);
       setLoading(false);
     }
     fetchKeys();
   }, []);
-
-  const EMBEDDERS = [
-    {
-      name: "AnythingLLM Embedder",
-      value: "native",
-      logo: AnythingLLMIcon,
-      options: <NativeEmbeddingOptions settings={settings} />,
-      description:
-        "Use the built-in embedding engine for AnythingLLM. Zero setup!",
-    },
-    {
-      name: "OpenAI",
-      value: "openai",
-      logo: OpenAiLogo,
-      options: <OpenAiOptions settings={settings} />,
-      description: "The standard option for most non-commercial use.",
-    },
-    {
-      name: "Azure OpenAI",
-      value: "azure",
-      logo: AzureOpenAiLogo,
-      options: <AzureAiOptions settings={settings} />,
-      description: "The enterprise option of OpenAI hosted on Azure services.",
-    },
-    {
-      name: "Local AI",
-      value: "localai",
-      logo: LocalAiLogo,
-      options: <LocalAiOptions settings={settings} />,
-      description: "Run embedding models locally on your own machine.",
-    },
-    {
-      name: "Ollama",
-      value: "ollama",
-      logo: OllamaLogo,
-      options: <OllamaEmbeddingOptions settings={settings} />,
-      description: "Run embedding models locally on your own machine.",
-    },
-  ];
 
   useEffect(() => {
     const filtered = EMBEDDERS.filter((embedder) =>
@@ -204,9 +257,9 @@ export default function GeneralEmbeddingPreference() {
                   />
                 )}
                 {searchMenuOpen ? (
-                  <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] overflow-auto white-scrollbar min-h-[64px] bg-[#18181B] rounded-lg flex flex-col justify-between cursor-pointer border-2 border-[#46C8FF] z-20">
+                  <div className="absolute top-0 left-0 w-full max-w-[640px] max-h-[310px] overflow-auto white-scrollbar min-h-[64px] bg-dark-input rounded-lg flex flex-col justify-between cursor-pointer border-2 border-[#46C8FF] z-20">
                     <div className="w-full flex flex-col gap-y-1">
-                      <div className="flex items-center sticky top-0 border-b border-[#9CA3AF] mx-4 bg-[#18181B]">
+                      <div className="flex items-center sticky top-0 border-b border-[#9CA3AF] mx-4 bg-dark-input">
                         <MagnifyingGlass
                           size={20}
                           weight="bold"
@@ -227,7 +280,7 @@ export default function GeneralEmbeddingPreference() {
                         <X
                           size={20}
                           weight="bold"
-                          className="cursor-pointer text-white hover:text-[#9CA3AF]"
+                          className="cursor-pointer text-white hover:text-x-button"
                           onClick={handleXButton}
                         />
                       </div>
@@ -248,7 +301,7 @@ export default function GeneralEmbeddingPreference() {
                   </div>
                 ) : (
                   <button
-                    className="w-full max-w-[640px] h-[64px] bg-[#18181B] rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-[#46C8FF] transition-all duration-300"
+                    className="w-full max-w-[640px] h-[64px] bg-dark-input rounded-lg flex items-center p-[14px] justify-between cursor-pointer border-2 border-transparent hover:border-[#46C8FF] transition-all duration-300"
                     type="button"
                     onClick={() => setSearchMenuOpen(true)}
                   >
@@ -262,7 +315,7 @@ export default function GeneralEmbeddingPreference() {
                         <div className="text-sm font-semibold text-white">
                           {selectedEmbedderObject.name}
                         </div>
-                        <div className="mt-1 text-xs text-[#D2D5DB]">
+                        <div className="mt-1 text-xs text-description">
                           {selectedEmbedderObject.description}
                         </div>
                       </div>
@@ -282,7 +335,7 @@ export default function GeneralEmbeddingPreference() {
                 {selectedEmbedder &&
                   EMBEDDERS.find(
                     (embedder) => embedder.value === selectedEmbedder
-                  )?.options}
+                  )?.options(settings)}
               </div>
             </div>
           </form>
@@ -290,7 +343,7 @@ export default function GeneralEmbeddingPreference() {
       )}
       <ModalWrapper isOpen={isOpen}>
         <ChangeWarningModal
-          warningText="Switching the vector database will ignore previously embedded documents and future similarity search results. They will need to be re-added to each workspace."
+          warningText="Switching the embedding model will break previously embedded documents from working during chat. They will need to un-embed from every workspace and fully removed and re-uploaded so they can be embed by the new embedding model."
           onClose={closeModal}
           onConfirm={handleSaveSettings}
         />

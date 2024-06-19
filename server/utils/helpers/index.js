@@ -1,5 +1,5 @@
 function getVectorDbClass() {
-  const vectorSelection = process.env.VECTOR_DB || "pinecone";
+  const vectorSelection = process.env.VECTOR_DB || "lancedb";
   switch (vectorSelection) {
     case "pinecone":
       const { Pinecone } = require("../vectorDbProviders/pinecone");
@@ -77,12 +77,30 @@ function getLLMProvider({ provider = null, model = null } = {}) {
     case "groq":
       const { GroqLLM } = require("../AiProviders/groq");
       return new GroqLLM(embedder, model);
+    case "koboldcpp":
+      const { KoboldCPPLLM } = require("../AiProviders/koboldCPP");
+      return new KoboldCPPLLM(embedder, model);
+    case "textgenwebui":
+      const { TextGenWebUILLM } = require("../AiProviders/textGenWebUI");
+      return new TextGenWebUILLM(embedder, model);
+    case "cohere":
+      const { CohereLLM } = require("../AiProviders/cohere");
+      return new CohereLLM(embedder, model);
+    case "litellm":
+      const { LiteLLM } = require("../AiProviders/liteLLM");
+      return new LiteLLM(embedder, model);
+    case "generic-openai":
+      const { GenericOpenAiLLM } = require("../AiProviders/genericOpenAi");
+      return new GenericOpenAiLLM(embedder, model);
     default:
-      throw new Error("ENV: No LLM_PROVIDER value found in environment!");
+      throw new Error(
+        `ENV: No valid LLM_PROVIDER value found in environment! Using ${process.env.LLM_PROVIDER}`
+      );
   }
 }
 
 function getEmbeddingEngineSelection() {
+  const { NativeEmbedder } = require("../EmbeddingEngines/native");
   const engineSelection = process.env.EMBEDDING_ENGINE;
   switch (engineSelection) {
     case "openai":
@@ -100,10 +118,21 @@ function getEmbeddingEngineSelection() {
       const { OllamaEmbedder } = require("../EmbeddingEngines/ollama");
       return new OllamaEmbedder();
     case "native":
-      const { NativeEmbedder } = require("../EmbeddingEngines/native");
       return new NativeEmbedder();
+    case "lmstudio":
+      const { LMStudioEmbedder } = require("../EmbeddingEngines/lmstudio");
+      return new LMStudioEmbedder();
+    case "cohere":
+      const { CohereEmbedder } = require("../EmbeddingEngines/cohere");
+      return new CohereEmbedder();
+    case "voyageai":
+      const { VoyageAiEmbedder } = require("../EmbeddingEngines/voyageAi");
+      return new VoyageAiEmbedder();
+    case "litellm":
+      const { LiteLLMEmbedder } = require("../EmbeddingEngines/liteLLM");
+      return new LiteLLMEmbedder();
     default:
-      return null;
+      return new NativeEmbedder();
   }
 }
 

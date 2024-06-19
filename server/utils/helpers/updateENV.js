@@ -52,6 +52,10 @@ const KEY_MAPPING = {
     envKey: "GEMINI_LLM_MODEL_PREF",
     checks: [isNotEmpty, validGeminiModel],
   },
+  GeminiSafetySetting: {
+    envKey: "GEMINI_SAFETY_SETTING",
+    checks: [validGeminiSafetySetting],
+  },
 
   // LMStudio Settings
   LMStudioBasePath: {
@@ -129,6 +133,74 @@ const KEY_MAPPING = {
   },
   HuggingFaceLLMTokenLimit: {
     envKey: "HUGGING_FACE_LLM_TOKEN_LIMIT",
+    checks: [nonZero],
+  },
+
+  // KoboldCPP Settings
+  KoboldCPPBasePath: {
+    envKey: "KOBOLD_CPP_BASE_PATH",
+    checks: [isNotEmpty, isValidURL],
+  },
+  KoboldCPPModelPref: {
+    envKey: "KOBOLD_CPP_MODEL_PREF",
+    checks: [isNotEmpty],
+  },
+  KoboldCPPTokenLimit: {
+    envKey: "KOBOLD_CPP_MODEL_TOKEN_LIMIT",
+    checks: [nonZero],
+  },
+
+  // Text Generation Web UI Settings
+  TextGenWebUIBasePath: {
+    envKey: "TEXT_GEN_WEB_UI_BASE_PATH",
+    checks: [isValidURL],
+  },
+  TextGenWebUITokenLimit: {
+    envKey: "TEXT_GEN_WEB_UI_MODEL_TOKEN_LIMIT",
+    checks: [nonZero],
+  },
+  TextGenWebUIAPIKey: {
+    envKey: "TEXT_GEN_WEB_UI_API_KEY",
+    checks: [],
+  },
+
+  // LiteLLM Settings
+  LiteLLMModelPref: {
+    envKey: "LITE_LLM_MODEL_PREF",
+    checks: [isNotEmpty],
+  },
+  LiteLLMTokenLimit: {
+    envKey: "LITE_LLM_MODEL_TOKEN_LIMIT",
+    checks: [nonZero],
+  },
+  LiteLLMBasePath: {
+    envKey: "LITE_LLM_BASE_PATH",
+    checks: [isValidURL],
+  },
+  LiteLLMApiKey: {
+    envKey: "LITE_LLM_API_KEY",
+    checks: [],
+  },
+
+  // Generic OpenAI InferenceSettings
+  GenericOpenAiBasePath: {
+    envKey: "GENERIC_OPEN_AI_BASE_PATH",
+    checks: [isValidURL],
+  },
+  GenericOpenAiModelPref: {
+    envKey: "GENERIC_OPEN_AI_MODEL_PREF",
+    checks: [isNotEmpty],
+  },
+  GenericOpenAiTokenLimit: {
+    envKey: "GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT",
+    checks: [nonZero],
+  },
+  GenericOpenAiKey: {
+    envKey: "GENERIC_OPEN_AI_API_KEY",
+    checks: [],
+  },
+  GenericOpenAiMaxTokens: {
+    envKey: "GENERIC_OPEN_AI_MAX_TOKENS",
     checks: [nonZero],
   },
 
@@ -272,17 +344,38 @@ const KEY_MAPPING = {
     checks: [isNotEmpty],
   },
 
+  // Cohere Options
+  CohereApiKey: {
+    envKey: "COHERE_API_KEY",
+    checks: [isNotEmpty],
+  },
+  CohereModelPref: {
+    envKey: "COHERE_MODEL_PREF",
+    checks: [isNotEmpty],
+  },
+
+  // VoyageAi Options
+  VoyageAiApiKey: {
+    envKey: "VOYAGEAI_API_KEY",
+    checks: [isNotEmpty],
+  },
+
   // Whisper (transcription) providers
   WhisperProvider: {
     envKey: "WHISPER_PROVIDER",
     checks: [isNotEmpty, supportedTranscriptionProvider],
     postUpdate: [],
   },
+  WhisperModelPref: {
+    envKey: "WHISPER_MODEL_PREF",
+    checks: [validLocalWhisper],
+    postUpdate: [],
+  },
 
   // System Settings
   AuthToken: {
     envKey: "AUTH_TOKEN",
-    checks: [requiresForceMode],
+    checks: [requiresForceMode, noRestrictedChars],
   },
   JWTSecret: {
     envKey: "JWT_SECRET",
@@ -290,6 +383,54 @@ const KEY_MAPPING = {
   },
   DisableTelemetry: {
     envKey: "DISABLE_TELEMETRY",
+    checks: [],
+  },
+
+  // Agent Integration ENVs
+  AgentGoogleSearchEngineId: {
+    envKey: "AGENT_GSE_CTX",
+    checks: [],
+  },
+  AgentGoogleSearchEngineKey: {
+    envKey: "AGENT_GSE_KEY",
+    checks: [],
+  },
+  AgentSerperApiKey: {
+    envKey: "AGENT_SERPER_DEV_KEY",
+    checks: [],
+  },
+  AgentBingSearchApiKey: {
+    envKey: "AGENT_BING_SEARCH_API_KEY",
+    checks: [],
+  },
+  AgentSerplyApiKey: {
+    envKey: "AGENT_SERPLY_API_KEY",
+    checks: [],
+  },
+
+  // TTS/STT Integration ENVS
+  TextToSpeechProvider: {
+    envKey: "TTS_PROVIDER",
+    checks: [supportedTTSProvider],
+  },
+
+  // TTS OpenAI
+  TTSOpenAIKey: {
+    envKey: "TTS_OPEN_AI_KEY",
+    checks: [validOpenAIKey],
+  },
+  TTSOpenAIVoiceModel: {
+    envKey: "TTS_OPEN_AI_VOICE_MODEL",
+    checks: [],
+  },
+
+  // TTS ElevenLabs
+  TTSElevenLabsKey: {
+    envKey: "TTS_ELEVEN_LABS_KEY",
+    checks: [isNotEmpty],
+  },
+  TTSElevenLabsVoiceModel: {
+    envKey: "TTS_ELEVEN_LABS_VOICE_MODEL",
     checks: [],
   },
 };
@@ -345,6 +486,21 @@ function validOllamaLLMBasePath(input = "") {
   }
 }
 
+function supportedTTSProvider(input = "") {
+  const validSelection = ["native", "openai", "elevenlabs"].includes(input);
+  return validSelection ? null : `${input} is not a valid TTS provider.`;
+}
+
+function validLocalWhisper(input = "") {
+  const validSelection = [
+    "Xenova/whisper-small",
+    "Xenova/whisper-large",
+  ].includes(input);
+  return validSelection
+    ? null
+    : `${input} is not a valid Whisper model selection.`;
+}
+
 function supportedLLM(input = "") {
   const validSelection = [
     "openai",
@@ -361,6 +517,11 @@ function supportedLLM(input = "") {
     "perplexity",
     "openrouter",
     "groq",
+    "koboldcpp",
+    "textgenwebui",
+    "cohere",
+    "litellm",
+    "generic-openai",
   ].includes(input);
   return validSelection ? null : `${input} is not a valid LLM provider.`;
 }
@@ -373,10 +534,27 @@ function supportedTranscriptionProvider(input = "") {
 }
 
 function validGeminiModel(input = "") {
-  const validModels = ["gemini-pro"];
+  const validModels = [
+    "gemini-pro",
+    "gemini-1.0-pro",
+    "gemini-1.5-pro-latest",
+    "gemini-1.5-flash-latest",
+  ];
   return validModels.includes(input)
     ? null
     : `Invalid Model type. Must be one of ${validModels.join(", ")}.`;
+}
+
+function validGeminiSafetySetting(input = "") {
+  const validModes = [
+    "BLOCK_NONE",
+    "BLOCK_ONLY_HIGH",
+    "BLOCK_MEDIUM_AND_ABOVE",
+    "BLOCK_LOW_AND_ABOVE",
+  ];
+  return validModes.includes(input)
+    ? null
+    : `Invalid Safety setting. Must be one of ${validModes.join(", ")}.`;
 }
 
 function validAnthropicModel(input = "") {
@@ -394,7 +572,17 @@ function validAnthropicModel(input = "") {
 }
 
 function supportedEmbeddingModel(input = "") {
-  const supported = ["openai", "azure", "localai", "native", "ollama"];
+  const supported = [
+    "openai",
+    "azure",
+    "localai",
+    "native",
+    "ollama",
+    "lmstudio",
+    "cohere",
+    "voyageai",
+    "litellm",
+  ];
   return supported.includes(input)
     ? null
     : `Invalid Embedding model type. Must be one of ${supported.join(", ")}.`;
@@ -492,6 +680,13 @@ function validHuggingFaceEndpoint(input = "") {
     : null;
 }
 
+function noRestrictedChars(input = "") {
+  const regExp = new RegExp(/^[a-zA-Z0-9_\-!@$%^&*();]+$/);
+  return !regExp.test(input)
+    ? `Your password has restricted characters in it. Allowed symbols are _,-,!,@,$,%,^,&,*,(,),;`
+    : null;
+}
+
 // This will force update .env variables which for any which reason were not able to be parsed or
 // read from an ENV file as this seems to be a complicating step for many so allowing people to write
 // to the process will at least alleviate that issue. It does not perform comprehensive validity checks or sanity checks
@@ -571,6 +766,14 @@ async function dumpENV() {
     "HTTPS_KEY_PATH",
     // DISABLED TELEMETRY
     "DISABLE_TELEMETRY",
+
+    // Agent Integrations
+    // Search engine integrations
+    "AGENT_GSE_CTX",
+    "AGENT_GSE_KEY",
+    "AGENT_SERPER_DEV_KEY",
+    "AGENT_BING_SEARCH_API_KEY",
+    "AGENT_SERPLY_API_KEY",
   ];
 
   // Simple sanitization of each value to prevent ENV injection via newline or quote escaping.

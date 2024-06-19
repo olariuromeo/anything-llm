@@ -2,8 +2,10 @@ process.env.NODE_ENV === "development"
   ? require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` })
   : require("dotenv").config();
 
-const { isValidUrl } = require("../utils/http");
+const { default: slugify } = require("slugify");
+const { isValidUrl, safeJsonParse } = require("../utils/http");
 const prisma = require("../utils/prisma");
+const { v4 } = require("uuid");
 
 function isNullOrNaN(value) {
   if (value === null) return true;
@@ -22,6 +24,10 @@ const SystemSettings = {
     "support_email",
     "text_splitter_chunk_size",
     "text_splitter_chunk_overlap",
+    "agent_search_provider",
+    "default_agent_skills",
+    "agent_sql_connections",
+    "custom_app_name",
   ],
   validations: {
     footer_data: (updates) => {
@@ -61,8 +67,55 @@ const SystemSettings = {
         return 20;
       }
     },
+    agent_search_provider: (update) => {
+      try {
+        if (update === "none") return null;
+        if (
+          ![
+            "google-search-engine",
+            "serper-dot-dev",
+            "bing-search",
+            "serply-engine",
+          ].includes(update)
+        )
+          throw new Error("Invalid SERP provider.");
+        return String(update);
+      } catch (e) {
+        console.error(
+          `Failed to run validation function on agent_search_provider`,
+          e.message
+        );
+        return null;
+      }
+    },
+    default_agent_skills: (updates) => {
+      try {
+        const skills = updates.split(",").filter((skill) => !!skill);
+        return JSON.stringify(skills);
+      } catch (e) {
+        console.error(`Could not validate agent skills.`);
+        return JSON.stringify([]);
+      }
+    },
+    agent_sql_connections: async (updates) => {
+      const existingConnections = safeJsonParse(
+        (await SystemSettings.get({ label: "agent_sql_connections" }))?.value,
+        []
+      );
+      try {
+        const updatedConnections = mergeConnections(
+          existingConnections,
+          safeJsonParse(updates, [])
+        );
+        return JSON.stringify(updatedConnections);
+      } catch (e) {
+        console.error(`Failed to merge connections`);
+        return JSON.stringify(existingConnections ?? []);
+      }
+    },
   },
   currentSettings: async function () {
+    const { hasVectorCachedFiles } = require("../utils/files");
     const llmProvider = process.env.LLM_PROVIDER;
     const vectorDB = process.env.VECTOR_DB;
     return {
@@ -80,7 +133,8 @@ const SystemSettings = {
       // Embedder Provider Selection Settings & Configs
       // --------------------------------------------------------
       EmbeddingEngine: process.env.EMBEDDING_ENGINE,
-      HasExistingEmbeddings: await this.hasEmbeddings(),
+      HasExistingEmbeddings: await this.hasEmbeddings(), // check if they have any currently embedded documents active in workspaces.
+      HasCachedEmbeddings: hasVectorCachedFiles(), // check if they any currently cached embedded docs.
       EmbeddingBasePath: process.env.EMBEDDING_BASE_PATH,
       EmbeddingModelPref: process.env.EMBEDDING_MODEL_PREF,
       EmbeddingModelMaxChunkLength:
@@ -104,6 +158,28 @@ const SystemSettings = {
       // - then it can be shared.
       // --------------------------------------------------------
       WhisperProvider: process.env.WHISPER_PROVIDER || "local",
+      WhisperModelPref:
+        process.env.WHISPER_MODEL_PREF || "Xenova/whisper-small",
+
+      // --------------------------------------------------------
+      // TTS/STT  Selection Settings & Configs
+      // - Currently the only 3rd party is OpenAI or the native browser-built in
+      // --------------------------------------------------------
+      TextToSpeechProvider: process.env.TTS_PROVIDER || "native",
+      TTSOpenAIKey: !!process.env.TTS_OPEN_AI_KEY,
+      TTSOpenAIVoiceModel: process.env.TTS_OPEN_AI_VOICE_MODEL,
+      // Eleven Labs TTS
+      TTSElevenLabsKey: !!process.env.TTS_ELEVEN_LABS_KEY,
+      TTSElevenLabsVoiceModel: process.env.TTS_ELEVEN_LABS_VOICE_MODEL,
+
+      // --------------------------------------------------------
+      // Agent Settings & Configs
+      // --------------------------------------------------------
+      AgentGoogleSearchEngineId: process.env.AGENT_GSE_CTX || null,
+      AgentGoogleSearchEngineKey: process.env.AGENT_GSE_KEY || null,
+      AgentSerperApiKey: process.env.AGENT_SERPER_DEV_KEY || null,
+      AgentBingSearchApiKey: process.env.AGENT_BING_SEARCH_API_KEY || null,
+      AgentSerplyApiKey: process.env.AGENT_SERPLY_API_KEY || null,
     };
   },
 
@@ -160,22 +236,30 @@ const SystemSettings = {
   // that takes no user input for the keys being modified.
   _updateSettings: async function (updates = {}) {
     try {
-      const updatePromises = Object.keys(updates).map((key) => {
-        const validatedValue = this.validations.hasOwnProperty(key)
-          ? this.validations[key](updates[key])
-          : updates[key];
+      const updatePromises = [];
+      for (const key of Object.keys(updates)) {
+        let validatedValue = updates[key];
+        if (this.validations.hasOwnProperty(key)) {
+          if (this.validations[key].constructor.name === "AsyncFunction") {
+            validatedValue = await this.validations[key](updates[key]);
+          } else {
+            validatedValue = this.validations[key](updates[key]);
+          }
+        }
 
-        return prisma.system_settings.upsert({
-          where: { label: key },
-          update: {
-            value: validatedValue === null ? null : String(validatedValue),
-          },
-          create: {
-            label: key,
-            value: validatedValue === null ? null : String(validatedValue),
-          },
-        });
-      });
+        updatePromises.push(
+          prisma.system_settings.upsert({
+            where: { label: key },
+            update: {
+              value: validatedValue === null ? null : String(validatedValue),
+            },
+            create: {
+              label: key,
+              value: validatedValue === null ? null : String(validatedValue),
+            },
+          })
+        );
+      }
 
       await Promise.all(updatePromises);
       return { success: true, error: null };
@@ -264,7 +348,7 @@ const SystemSettings = {
     return {
       // OpenAI Keys
       OpenAiKey: !!process.env.OPEN_AI_KEY,
-      OpenAiModelPref: process.env.OPEN_MODEL_PREF || "gpt-3.5-turbo",
+      OpenAiModelPref: process.env.OPEN_MODEL_PREF || "gpt-4o",
 
       // Azure + OpenAI Keys
       AzureOpenAiEndpoint: process.env.AZURE_OPENAI_ENDPOINT,
@@ -280,6 +364,8 @@ const SystemSettings = {
       // Gemini Keys
       GeminiLLMApiKey: !!process.env.GEMINI_API_KEY,
       GeminiLLMModelPref: process.env.GEMINI_LLM_MODEL_PREF || "gemini-pro",
+      GeminiSafetySetting:
+        process.env.GEMINI_SAFETY_SETTING || "BLOCK_MEDIUM_AND_ABOVE",
 
       // LMStudio Keys
       LMStudioBasePath: process.env.LMSTUDIO_BASE_PATH,
@@ -325,8 +411,90 @@ const SystemSettings = {
       HuggingFaceLLMEndpoint: process.env.HUGGING_FACE_LLM_ENDPOINT,
       HuggingFaceLLMAccessToken: !!process.env.HUGGING_FACE_LLM_API_KEY,
       HuggingFaceLLMTokenLimit: process.env.HUGGING_FACE_LLM_TOKEN_LIMIT,
+
+      // KoboldCPP Keys
+      KoboldCPPModelPref: process.env.KOBOLD_CPP_MODEL_PREF,
+      KoboldCPPBasePath: process.env.KOBOLD_CPP_BASE_PATH,
+      KoboldCPPTokenLimit: process.env.KOBOLD_CPP_MODEL_TOKEN_LIMIT,
+
+      // Text Generation Web UI Keys
+      TextGenWebUIBasePath: process.env.TEXT_GEN_WEB_UI_BASE_PATH,
+      TextGenWebUITokenLimit: process.env.TEXT_GEN_WEB_UI_MODEL_TOKEN_LIMIT,
+      TextGenWebUIAPIKey: !!process.env.TEXT_GEN_WEB_UI_API_KEY,
+
+      // LiteLLM Keys
+      LiteLLMModelPref: process.env.LITE_LLM_MODEL_PREF,
+      LiteLLMTokenLimit: process.env.LITE_LLM_MODEL_TOKEN_LIMIT,
+      LiteLLMBasePath: process.env.LITE_LLM_BASE_PATH,
+      LiteLLMApiKey: !!process.env.LITE_LLM_API_KEY,
+
+      // Generic OpenAI Keys
+      GenericOpenAiBasePath: process.env.GENERIC_OPEN_AI_BASE_PATH,
+      GenericOpenAiModelPref: process.env.GENERIC_OPEN_AI_MODEL_PREF,
+      GenericOpenAiTokenLimit: process.env.GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT,
+      GenericOpenAiKey: !!process.env.GENERIC_OPEN_AI_API_KEY,
+      GenericOpenAiMaxTokens: process.env.GENERIC_OPEN_AI_MAX_TOKENS,
+
+      // Cohere API Keys
+      CohereApiKey: !!process.env.COHERE_API_KEY,
+      CohereModelPref: process.env.COHERE_MODEL_PREF,
+
+      // VoyageAi API Keys
+      VoyageAiApiKey: !!process.env.VOYAGEAI_API_KEY,
     };
   },
+
+  // For special retrieval of a key setting that does not expose any credential information
+  brief: {
+    agent_sql_connections: async function () {
+      const setting = await SystemSettings.get({
+        label: "agent_sql_connections",
+      });
+      if (!setting) return [];
+      return safeJsonParse(setting.value, []).map((dbConfig) => {
+        const { connectionString, ...rest } = dbConfig;
+        return rest;
+      });
+    },
+  },
 };
+
+function mergeConnections(existingConnections = [], updates = []) {
+  let updatedConnections = [...existingConnections];
+  const existingDbIds = existingConnections.map((conn) => conn.database_id);
+
+  // First remove all 'action:remove' candidates from existing connections.
+  const toRemove = updates
+    .filter((conn) => conn.action === "remove")
+    .map((conn) => conn.database_id);
+  updatedConnections = updatedConnections.filter(
+    (conn) => !toRemove.includes(conn.database_id)
+  );
+
+  // Next add all 'action:add' candidates into the updatedConnections; We DO NOT validate the connection strings.
+  // but we do validate their database_id is unique.
+  updates
+    .filter((conn) => conn.action === "add")
+    .forEach((update) => {
+      if (!update.connectionString) return; // invalid connection string
+
+      // Remap name to be unique to entire set.
+      if (existingDbIds.includes(update.database_id)) {
+        update.database_id = slugify(
+          `${update.database_id}-${v4().slice(0, 4)}`
+        );
+      } else {
+        update.database_id = slugify(update.database_id);
+      }
+
+      updatedConnections.push({
+        engine: update.engine,
+        database_id: update.database_id,
+        connectionString: update.connectionString,
+      });
+    });
+
+  return updatedConnections;
+}
 
 module.exports.SystemSettings = SystemSettings;
